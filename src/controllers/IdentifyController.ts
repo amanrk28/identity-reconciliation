@@ -12,7 +12,7 @@ identifyRoutes.post('/identify', async (req, res) => {
       return;
     }
 
-    const response = await identifyAndLinkContact({ email, phoneNumber: phoneNumber.toString() });
+    const response = await identifyAndLinkContact({ email, phoneNumber: phoneNumber?.toString() });
 
     res.status(200).json(response);
   } catch (error) {
