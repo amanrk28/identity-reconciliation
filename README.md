@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **Identity Reconciliation** is a Node.js application built using NodeJS, TypeScript and PostgreSQL. This service helps to identify and track a customer's identity across multiple purchases using contact information such as emails and phone numbers. The service links contacts with the oldest one being treated as the primary contact.
+The **Identity Reconciliation** is a Node.js application built using TypeScript and PostgreSQL. This service helps to identify and track a customer's identity across multiple purchases using contact information such as emails and phone numbers. The service links contacts with the oldest one being treated as the primary contact.
 
 ## Features
 
@@ -13,7 +13,11 @@ The **Identity Reconciliation** is a Node.js application built using NodeJS, Typ
 
 ## Server URL: https://identity-reconciliation-3o1k.onrender.com
 
-### Backup (Deployed to AWS EC2 instance): http://52.66.240.167:3000
+### Backup (Deployed to AWS EC2 instance): http://alb-identity-reconciliation-42813912.ap-south-1.elb.amazonaws.com
+
+*Update: Created an ALB with port forwarding from 80 to 3000 inside the application.
+
+<b>Note to self: Remember to teardown AWS resources later.</b>
 
 ## API Endpoints
 
