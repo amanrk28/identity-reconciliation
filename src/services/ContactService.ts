@@ -29,6 +29,35 @@ export const identifyAndLinkContact = async ({ phoneNumber, email }: { phoneNumb
   }
 
   const primaryContact = matchingContacts.find(contact => contact.linkPrecedence === "primary") || matchingContacts[0];
+  const hasMoreThanOnePrimaryContact = matchingContacts.filter(contact => contact.linkPrecedence === "primary").length > 1;
+
+  if (hasMoreThanOnePrimaryContact) {
+    // leave the oldest primary contact as primary & update the rest to secondary
+    const primaryContacts = matchingContacts.filter(contact => contact.linkPrecedence === "primary");
+    const oldestPrimaryContact = primaryContacts.reduce((oldest, current) => oldest?.createdAt < current.createdAt ? oldest : current);
+    const otherPrimaryContacts = primaryContacts.filter(contact => contact.id !== oldestPrimaryContact.id);
+
+    for (const otherPrimary of otherPrimaryContacts) {
+      otherPrimary.linkPrecedence = "secondary";
+      otherPrimary.linkedId = oldestPrimaryContact.id;
+      await contactRepo.save(otherPrimary);
+    }
+
+    return {
+      contact: {
+        primaryContactId: oldestPrimaryContact.id,
+        emails: [oldestPrimaryContact.email, ...otherPrimaryContacts.map(c => c.email)].filter(Boolean),
+        phoneNumbers: [oldestPrimaryContact.phoneNumber, ...otherPrimaryContacts.map(c => c.phoneNumber)].filter(Boolean),
+        secondaryContactIds: otherPrimaryContacts.map(contact => contact.id).reduce((acc, id) => {
+          if (!acc.includes(id)) {
+            acc.push(id);
+          }
+
+          return acc;
+        }, [] as number[]),
+      }
+    }
+  }
 
   const linkedContacts = await contactRepo.find({
     where: { linkedId: primaryContact.id }
