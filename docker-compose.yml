@@ -1,6 +1,6 @@
 services:
   api:
-    container_name: identity-server
+    container_name: identity-api
     build: .
     ports:
       - "3000:3000"
@@ -14,7 +14,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: identity
+      POSTGRES_DB: postgres
     volumes:
       - ./docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql
       - data:/var/lib/postgresql/data
