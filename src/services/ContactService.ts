@@ -4,63 +4,75 @@ import { Contact } from "../entity/Contact"
 export const identifyAndLinkContact = async ({ phoneNumber, email }: { phoneNumber: string | null, email: string | null }) => {
   const contactRepo = AppDataSource.getRepository(Contact);
 
-  const existingContacts = await contactRepo.find({
+  const matchingContacts = await contactRepo.find({
     where: [
       { phoneNumber: phoneNumber ?? undefined },
       { email: email ?? undefined }
     ]
   });
 
-  let primaryContact: Contact | null = null;
-  const primaryContacts = existingContacts.filter(c => c.linkPrecedence === 'primary');
+  if (matchingContacts.length === 0) {
+    const newContact = new Contact();
+    newContact.linkPrecedence = "primary";
+    if (email) newContact.email = email;
+    if (phoneNumber) newContact.phoneNumber = phoneNumber;
+    const newPrimaryContact = await contactRepo.save(newContact);
 
-  if (primaryContacts.length > 0) {
-    primaryContact = primaryContacts.reduce((oldest, contact) =>
-      contact.createdAt < oldest.createdAt ? contact : oldest
-    );
-
-    for (const contact of existingContacts) {
-      if (contact.id !== primaryContact.id) {
-        contact.linkedId = primaryContact.id;
-        contact.linkPrecedence = 'secondary';
-        await contactRepo.save(contact);
+    return {
+      contact: {
+        primaryContactId: newPrimaryContact.id,
+        emails: [newPrimaryContact.email].filter(Boolean),
+        phoneNumbers: [newPrimaryContact.phoneNumber].filter(Boolean),
+        secondaryContactIds: []
       }
-    }
-
-
-  } else {
-    primaryContact = new Contact();
-    if (phoneNumber != null) {
-      primaryContact.phoneNumber = phoneNumber;
-    }
-    if (email != null) {
-      primaryContact.email = email;
-    }
-    primaryContact.linkPrecedence = 'primary';
-    await contactRepo.save(primaryContact);
+    };
   }
 
-  const allLinkedContacts = await contactRepo.find({
-    where: [{ linkedId: primaryContact.id }, { id: primaryContact.id }]
+  const primaryContact = matchingContacts.find(contact => contact.linkPrecedence === "primary") || matchingContacts[0];
+
+  const linkedContacts = await contactRepo.find({
+    where: { linkedId: primaryContact.id }
   });
 
-  // Prepare the response format
-  const emails = allLinkedContacts
-    .map(contact => contact.email)
-    .filter(email => email !== null) as string[];
-  const phoneNumbers = allLinkedContacts
-    .map(contact => contact.phoneNumber)
-    .filter(phone => phone !== null) as string[];
-  const secondaryContactIds = allLinkedContacts
-    .filter(contact => contact.linkPrecedence === 'secondary')
-    .map(contact => contact.id);
+  const allEmails = new Set<string>([primaryContact.email, ...linkedContacts.map(contact => contact.email)].filter(Boolean));
+  const allPhoneNumbers = new Set<string>([primaryContact.phoneNumber, ...linkedContacts.map(contact => contact.phoneNumber)].filter(Boolean));
+  const secondaryContactIds = linkedContacts.map(contact => contact.id);
+
+  const isNewEmail = email && !allEmails.has(email);
+  const isNewPhoneNumber = phoneNumber && !allPhoneNumbers.has(phoneNumber);
+
+  if (isNewEmail || isNewPhoneNumber) {
+    const newContact = new Contact();
+    newContact.linkedId = primaryContact.id;
+    newContact.linkPrecedence = "secondary";
+    if (email) newContact.email = email;
+    if (phoneNumber) newContact.phoneNumber = phoneNumber;
+    const newSecondaryContact = await contactRepo.save(newContact);
+    secondaryContactIds.push(newSecondaryContact.id);
+
+    if (email) allEmails.add(email);
+    if (phoneNumber) allPhoneNumbers.add(phoneNumber);
+  }
+
+  const primaryConflicts = matchingContacts.filter(contact => contact.id !== primaryContact.id && contact.linkPrecedence === "primary");
+  if (primaryConflicts.length > 0) {
+    for (const conflictingPrimary of primaryConflicts) {
+      conflictingPrimary.linkPrecedence = "secondary";
+      conflictingPrimary.linkedId = primaryContact.id;
+      await contactRepo.save(conflictingPrimary);
+      secondaryContactIds.push(conflictingPrimary.id);
+
+      if (conflictingPrimary.email) allEmails.add(conflictingPrimary.email);
+      if (conflictingPrimary.phoneNumber) allPhoneNumbers.add(conflictingPrimary.phoneNumber);
+    }
+  }
 
   return {
     contact: {
       primaryContactId: primaryContact.id,
-      email: emails,
-      phoneNumber: phoneNumbers,
+      emails: Array.from(allEmails),
+      phoneNumbers: Array.from(allPhoneNumbers),
       secondaryContactIds
     }
-  }
+  };
 }
