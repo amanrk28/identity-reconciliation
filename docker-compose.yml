@@ -6,6 +6,11 @@ services:
       - "3000:3000"
     depends_on:
       - db
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
   db:
     container_name: identity-db
     build: ./docker/db
